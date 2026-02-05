@@ -10,17 +10,17 @@ type CommonProps = {
 
 const variantClasses: Record<NonNullable<CommonProps["variant"]>, string> = {
   primary:
-    "bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white",
+    "bg-brand-coral text-white hover:bg-brand-coral-dark shadow-sm shadow-brand-coral/20",
   secondary:
-    "bg-zinc-100 text-zinc-900 hover:bg-zinc-200 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800",
+    "bg-brand-navy text-white hover:bg-brand-navy-light shadow-sm",
   ghost:
-    "bg-transparent text-zinc-900 hover:bg-zinc-100 dark:text-zinc-100 dark:hover:bg-zinc-900",
+    "bg-transparent text-brand-navy hover:bg-brand-coral-light dark:text-white dark:hover:bg-white/10",
 };
 
 const sizeClasses: Record<NonNullable<CommonProps["size"]>, string> = {
-  sm: "h-9 px-3 text-sm",
-  md: "h-11 px-4 text-sm",
-  lg: "h-12 px-5 text-base",
+  sm: "h-9 px-4 text-sm",
+  md: "h-11 px-5 text-sm",
+  lg: "h-12 px-6 text-base",
 };
 
 export function Button({
@@ -35,7 +35,7 @@ export function Button({
     | ({ href: string } & Omit<React.AnchorHTMLAttributes<HTMLAnchorElement>, "href">)
   )) {
   const base = cn(
-    "inline-flex items-center justify-center rounded-full font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:pointer-events-none disabled:opacity-50 dark:focus-visible:ring-zinc-600 dark:focus-visible:ring-offset-zinc-950",
+    "inline-flex items-center justify-center rounded-full font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-coral focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
     variantClasses[variant],
     sizeClasses[size],
     className,
@@ -56,4 +56,3 @@ export function Button({
     </button>
   );
 }
-

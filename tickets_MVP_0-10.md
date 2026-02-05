@@ -1,408 +1,295 @@
-# rolik.io — MVP 0→10 Ticket Backlog
+# rolik.io — MVP 0→10 Ticket Backlog (v2 — Agency + Subscriptions)
 
-This file turns the PRD build plan (Levels 0→10) into actionable tickets.
+This file turns the PRD build plan (Levels 0-10) into actionable tickets.
 
 ## Conventions
 - **Type**: FE (frontend), BE (backend/API), DB (database), INFRA (hosting/storage/secrets), OPS (ops/monitoring), COPY (copy/legal/email)
 - **AC** = acceptance criteria
 - **Deps** = dependencies
+- **Status**: DONE = already implemented, NEW = added in v2 pivot, UPDATED = scope changed from v1
 
-## Global decisions captured (current)
-- **Stack (cheap + production-viable)**:
-  - Next.js (Vercel)
-  - Supabase: Postgres + Auth (magic links)
-  - Cloudflare R2: raw + delivery files (S3-compatible presigned uploads + signed downloads)
-  - Stripe Checkout + webhooks
-  - Resend for emails
-  - Vercel Cron (daily) for retention cleanup
-- **Packaging**:
-  - Keep Tier A/B/C (length + raw limits + included revisions)
-  - Add **Editing Level**:
-    - **Basic**: standard editing (no hard effects), internal time budget target ~≤60 min
-    - **Enhanced**: standard editing but more polish (still no hard effects), internal time budget target ~≤120 min
-    - **Pro/Complex**: hard effects / advanced requests → **quote-only** (manual pricing + due date)
+## Global decisions captured
 
----
+**Stack (unchanged):**
+- Next.js (Vercel)
+- Supabase: Postgres + Auth (magic links)
+- Cloudflare R2: raw + delivery file storage
+- Stripe Checkout (one-off) + Stripe Billing (subscriptions)
+- Resend for emails
+- Vercel Cron (daily) for retention cleanup
 
-## Level 0 — Repo & foundations
-
-### L0-01 (INFRA) Initialize Next.js + TS + repo structure
-- **Scope**: Create app skeleton, directory layout, basic CI-ready scripts.
-- **AC**:
-  - App boots locally
-  - `pnpm dev` (or `npm dev`) runs without errors
-  - Basic routes: `/` and `/pricing` render
-
-### L0-02 (INFRA) Environment + secrets strategy
-- **Scope**: Define required env vars and how they map to providers (Supabase, Stripe, R2, Resend).
-- **AC**:
-  - `.env.example` contains all required keys (no secrets)
-  - Documented per-provider setup steps in README section (minimal)
-
-### L0-03 (FE) UI foundation (mobile-first)
-- **Scope**: Add styling system (Tailwind or equivalent), base layout, buttons, forms, toasts.
-- **AC**:
-  - Wizard-ready components exist: `Button`, `Input`, `Select`, `Toggle`, `Progress`, `Card`
-  - Lighthouse mobile usability: no obvious layout breakpoints
-
-### L0-04 (INFRA) Provider project setup checklist (non-code)
-- **Scope**: Create accounts/projects: Supabase project, Cloudflare R2 bucket, Stripe test keys, Resend domain.
-- **AC**:
-  - A checklist section exists in repo docs (or ticket notes) with URLs and required values
+**Business model:**
+- Subscriptions: Starter ($299/mo, 8 pieces) and Growth ($599/mo, 20 pieces)
+- One-off: Quick Reel $59, Standard Reel $89, Full Reel $159, Photo Edit packages
+- Content types: reels, photos, carousels, stories
+- Content suggestions: caption + song recommendation per piece (subscribers)
 
 ---
 
-## Level 1 — DB & migrations
+## Level 0 — Repo and foundations (DONE)
 
-### L1-01 (DB) Create schema migrations (PRD tables)
-- **Scope**: Add migrations for:
-  - `users`
-  - `orders`
-  - `order_assets`
-  - `order_references`
-  - `messages`
-  - `deliveries`
-  - `status_history`
-- **AC**:
-  - Can apply migrations to local/dev DB
-  - Constraints: FK relationships, required fields, indexes on `orders.status`, `orders.created_at`, `orders.email`, `messages.order_id`
-
-### L1-02 (DB) Add fields for Editing Level + Pro quote
-- **Scope**: Extend `orders` with:
-  - `editing_level` (basic|enhanced|pro)
-  - quote metadata: `quote_requested_at`, `quoted_price_cents`, `quoted_due_at`, `quoted_at` (and optional `quoted_by`)
-- **AC**:
-  - DB enforces allowed `editing_level` values
-  - Quote fields nullable for Basic/Enhanced orders
-
-### L1-03 (DB) Add Stripe idempotency tables
-- **Scope**: Add `stripe_events` (or similar) table:
-  - `event_id` unique
-  - `type`, `created`, `payload_json`, `processed_at`
-- **AC**:
-  - Webhook handler can safely ignore duplicate deliveries
-
-### L1-04 (BE) DB access layer
-- **Scope**: Implement a small DB module for server-only queries (SQL client / query builder).
-- **AC**:
-  - Centralized DB connection
-  - Basic CRUD helpers for `orders` and `order_assets`
+### L0-01 (INFRA) Initialize Next.js + TS + repo structure — DONE
+### L0-02 (INFRA) Environment + secrets strategy — DONE
+### L0-03 (FE) UI foundation (mobile-first) — DONE
+### L0-04 (INFRA) Provider project setup checklist — DONE
 
 ---
 
-## Level 2 — Presigned uploads (R2) + asset registration
+## Level 1 — DB and migrations
 
-### L2-01 (INFRA) Create R2 bucket + CORS policy
-- **Scope**: Configure R2 bucket(s) and CORS for browser PUT uploads via presigned URLs.
-- **AC**:
-  - Browser upload works from localhost and prod domain
-  - Only required methods/headers allowed
+### L1-01 (DB) Create schema migrations (v1 tables) — DONE
+- orders, order_assets, order_references, messages, deliveries, status_history, stripe_events
 
-### L2-02 (BE) `POST /api/uploads/presign` for R2 PUT
-- **Scope**: Return presigned PUT URLs for client uploads; restrict content-type where possible.
-- **AC**:
-  - Request validates: file kind, mime type, max size, order ownership
-  - Presign expiry is short (e.g. 10–30 min)
-  - Object keys are namespaced by `order_id`
+### L1-02 (DB) Add fields for editing level + pro quote — DONE
 
-### L2-03 (FE) Upload component with progress + retry
-- **Scope**: Multi-file uploader for video/image/voice/logo.
-- **AC**:
-  - Shows per-file progress bar
-  - Retry failed file without restarting entire wizard
-  - Prevents navigation away with in-flight uploads (or warns)
+### L1-03 (DB) Add Stripe idempotency table — DONE
 
-### L2-04 (BE) `POST /api/orders/:id/assets` register metadata
-- **Scope**: After upload completes, client posts metadata to create `order_assets`.
-- **AC**:
-  - Server validates object key prefix, size, mime type, kind
-  - Stores duration if provided (client may not know duration reliably; allow null)
+### L1-04 (BE) DB access layer — DONE
 
-### L2-05 (FE) Raw duration limit UX
-- **Scope**: Display “raw used vs limit” with enforcement.
+### L1-05 (DB) Add subscriptions table — NEW
+- **Scope**: Create `subscriptions` table with: id, user_id, email, plan (starter/growth), status (active/past_due/canceled), pieces_per_month, pieces_used_this_period, revisions_per_piece, shared_folder_url, stripe_subscription_id, stripe_customer_id, current_period_start, current_period_end, canceled_at, created_at, updated_at
 - **AC**:
-  - User sees tier limit and current usage
-  - Cannot proceed if no files uploaded
+  - Migration applies cleanly
+  - Indexes on user_id, status, stripe_subscription_id
+
+### L1-06 (DB) Add content_pieces table — NEW
+- **Scope**: Create `content_pieces` table with: id, subscription_id, user_id, email, type (reel/photo/carousel/story), status enum, revisions_included, revisions_used, suggested_caption, suggested_song_name, suggested_song_artist, suggested_song_url, suggested_post_date, due_at, created_at, updated_at
+- **AC**:
+  - Status enum: raw_received, in_review, in_progress, delivered, revision_requested, revision_in_progress, approved, ready_to_post, skipped
+  - FK to subscriptions
+  - Indexes on subscription_id, status, due_at
+
+### L1-07 (DB) Add content_piece_assets and content_piece_deliveries tables — NEW
+- **Scope**: Create asset and delivery tables for content pieces (same shape as order_assets/deliveries but FK to content_pieces)
+- **AC**:
+  - content_piece_assets: id, content_piece_id, kind, storage_key, filename, mime_type, size_bytes, duration_seconds, created_at
+  - content_piece_deliveries: id, content_piece_id, version_number, storage_key, filename, duration_seconds, created_at
+  - Indexes on content_piece_id
+
+### L1-08 (DB) Add brief fields to orders — DONE
+- brief_want, brief_avoid, brief_must_include columns
+
+### L1-09 (DB) Add content_type field to orders — NEW
+- **Scope**: Add `content_type` (reel/photo/carousel/story) to orders table for one-off photo editing support
+- **AC**: Column added with default "reel" for backward compatibility
 
 ---
 
-## Level 3 — Order wizard + DRAFT orders
+## Level 2 — Presigned uploads (DONE)
 
-### L3-01 (FE) Step 1 “Choose” screen
-- **Scope**: Platform (IG/TikTok/Shorts), Tier A/B/C, vibe cards, add-ons, editing level Basic/Enhanced/Pro.
-- **AC**:
-  - Mobile-first, fast to complete
-  - Summary panel shows price estimate and constraints
-  - If user selects **Pro**, UI indicates “quote required”
-
-### L3-02 (BE) `POST /api/orders` create DRAFT order
-- **Scope**: Create `orders` row with status `DRAFT` and calculated limits:
-  - raw_limit_seconds, revisions_included
-- **AC**:
-  - Validates tier + add-ons compatibility
-  - Persists `editing_level`
-
-### L3-03 (FE) Step 2 “Upload” screen
-- **Scope**: Uses L2 uploader + shows constraints.
-- **AC**:
-  - User cannot continue until ≥1 asset registered
-  - Shows used vs limit indicator
-
-### L3-04 (FE) Step 3 “Brief” screen
-- **Scope**: Required “What do you want?”, optional fields, up to 5 reference links, optional voice note.
-- **AC**:
-  - Validates required brief
-  - Stores references
-
-### L3-05 (BE) Save brief + references
-- **Scope**: Update `orders` with brief fields and create `order_references`.
-- **AC**:
-  - References validated as URLs
-  - Status transitions to `AWAITING_PAYMENT` (or `QUOTE_REQUESTED` for Pro)
-
-### L3-06 (BE/FE) Pro flow: request quote (no checkout yet)
-- **Scope**:
-  - If `editing_level=pro`, after brief submission → status `QUOTE_REQUESTED`
-  - Client portal shows “Quote pending”
-- **AC**:
-  - Pro orders do not allow checkout until quoted
-  - Admin sees Pro orders clearly flagged
+### L2-01 (INFRA) Create R2 bucket + CORS — DONE
+### L2-02 (BE) POST /api/uploads/presign — DONE
+### L2-03 (FE) Upload component with progress + retry — DONE
+### L2-04 (BE) POST /api/orders/:id/assets — DONE
+### L2-05 (FE) Raw duration limit UX — DONE
 
 ---
 
-## Level 4 — Payments + webhook (Stripe)
+## Level 3 — Order wizard + DRAFT orders (DONE, needs update)
 
-### L4-01 (BE) `POST /api/orders/:id/checkout` create Stripe Checkout
-- **Scope**: Create checkout session for Basic/Enhanced orders; for Pro only after quote is set.
-- **AC**:
-  - Prevents duplicate sessions (reuse existing pending session)
-  - Passes `order_id` in metadata
-  - Handles cancel/success redirects safely
+### L3-01 (FE) Step 1 "Choose" screen — UPDATED
+- **Scope**: Add content type selector (Reel or Photo Edit) before platform/tier/vibe selection
+- **AC**: If Photo Edit, show photo packages instead of reel tiers
 
-### L4-02 (BE) `POST /api/stripe/webhook` verification + idempotency
-- **Scope**: Verify signature, store event id, process relevant events.
-- **AC**:
-  - Duplicate events do not create duplicate transitions
-  - On payment success: order → `PAID`, set `stripe_*` ids
-
-### L4-03 (BE) SLA `due_at` calculation rules
-- **Scope**: Compute `due_at` based on tier + rush add-on + (optional) editing level.
-- **AC**:
-  - SLA starts only when payment + uploads complete + brief exists (PRD)
-  - Stored on order at `PAID`
-
-### L4-04 (COPY/BE) Payment confirmation email
-- **Scope**: Send email “payment received” with portal link.
-- **AC**:
-  - Email sent exactly once per order payment
+### L3-02 (BE) POST /api/orders — DONE (needs content_type field)
+### L3-03 (FE) Step 2 "Upload" screen — DONE
+### L3-04 (FE) Step 3 "Brief" screen — DONE
+### L3-05 (BE) Save brief + references — DONE
+### L3-06 (BE/FE) Pro flow: request quote — DONE
 
 ---
 
-## Level 5 — Client portal + timeline (magic link)
+## Level 4 — Payments (one-off + subscription)
 
-### L5-01 (INFRA/BE) Supabase Auth: magic link sign-in
-- **Scope**: Implement auth flow and session cookie handling.
-- **AC**:
-  - User can request magic link and sign in
-  - Session persists across refresh
+### L4-01 (BE) POST /api/orders/:id/checkout — Stripe one-off checkout — DONE (stub)
+### L4-02 (BE) POST /api/stripe/webhook — one-off payment verification — DONE (stub)
+### L4-03 (BE) SLA due_at calculation — DONE (stub)
+### L4-04 (COPY/BE) Payment confirmation email — pending
 
-### L5-02 (BE) `GET /api/orders/:id` (authz + data shape)
-- **Scope**: Return order detail, assets list, references, messages, deliveries, status history.
+### L4-05 (BE) Stripe Billing: subscription checkout — NEW
+- **Scope**: Create endpoint `POST /api/subscriptions/checkout` that creates a Stripe Checkout session in subscription mode for Starter or Growth plan
 - **AC**:
-  - Only order owner can view
-  - Response includes revision quota counters and timeline items
+  - Creates Stripe Customer if needed
+  - Creates Checkout session with correct price ID
+  - Stores stripe_customer_id and stripe_subscription_id on success
+  - Redirects to success/cancel pages
 
-### L5-03 (FE) Order detail page (status timeline + summary)
-- **Scope**: Display status machine, due date, constraints, uploaded assets list.
+### L4-06 (BE) Stripe webhook: subscription events — NEW
+- **Scope**: Handle subscription lifecycle events in existing webhook handler: customer.subscription.created, updated, deleted, invoice.payment_failed
 - **AC**:
-  - Shows current status and history
-  - Clear next action: wait / approve / request revision
+  - Creates/updates subscription row on creation
+  - Sets status to past_due on payment failure
+  - Sets status to canceled on deletion
+  - Resets pieces_used_this_period on renewal (invoice.paid with billing_reason=subscription_cycle)
 
-### L5-04 (FE/BE) Messaging thread
-- **Scope**: Client can send messages; admin replies (admin UI later).
+### L4-07 (FE) Subscription checkout page — NEW
+- **Scope**: Page at /subscribe with plan selection (Starter/Growth) and Stripe checkout redirect
 - **AC**:
-  - New messages appear without full refresh (polling ok for MVP)
-  - Messages persisted with sender type
-
-### L5-05 (BE) Signed download links for assets/deliveries
-- **Scope**: Generate short-lived signed GET URLs for R2 objects.
-- **AC**:
-  - URLs expire (e.g. 10–60 min)
-  - Only owner/admin can request
+  - Shows both plans with features comparison
+  - "Subscribe" button creates session and redirects to Stripe
+  - Success page redirects to onboarding
 
 ---
 
-## Level 6 — Admin dashboard (ops)
+## Level 5 — Client portal (one-off) — PARTIALLY DONE
 
-### L6-01 (BE) Admin auth allowlist
-- **Scope**: Protect `/admin` routes and admin API endpoints by email allowlist.
-- **AC**:
-  - Non-allowlisted users cannot access admin
-  - Allowlist stored in env or DB (documented)
-
-### L6-02 (FE) Admin orders list with filters + SLA risk
-- **Scope**: List orders; filter by status, tier, editing level; show “due soon/overdue”.
-- **AC**:
-  - Can quickly find Pro quote requests
-  - SLA risk indicator visible
-
-### L6-03 (FE/BE) Admin order detail view
-- **Scope**: Show assets, brief, references, messages, status history, deliveries.
-- **AC**:
-  - Admin can change status safely (with audit entry)
-  - Admin can add internal notes (optional MVP)
-
-### L6-04 (BE) Admin endpoints
-- **Scope**:
-  - `GET /api/admin/orders`
-  - `GET /api/admin/orders/:id`
-  - `POST /api/admin/orders/:id/status`
-  - `POST /api/admin/orders/:id/assign`
-- **AC**:
-  - All endpoints protected by admin auth
-  - Status changes create `status_history` entries
-
-### L6-05 (FE/BE) Pro quote tool (admin)
-- **Scope**: Admin sets `quoted_price_cents` + `quoted_due_at`, transitions `QUOTE_REQUESTED -> QUOTED`.
-- **AC**:
-  - Client sees quote in portal and can proceed to checkout
-  - Quote changes are auditable
+### L5-01 (INFRA/BE) Supabase Auth magic link — DONE
+### L5-02 (BE) GET /api/orders/:id — DONE
+### L5-03 (FE) Order detail page — DONE
+### L5-04 (FE/BE) Messaging thread — pending
+### L5-05 (BE) Signed download links — DONE (stub)
 
 ---
 
-## Level 7 — Deliveries (versioned) + client review
+## Level 6 — Subscription signup + onboarding (NEW)
 
-### L7-01 (BE) Admin delivery upload presign (R2)
-- **Scope**: Presign PUT for delivery file; store as `deliveries` with `version_number`.
+### L6-01 (FE) Subscription onboarding page — NEW
+- **Scope**: After successful subscription checkout, show onboarding: upload first batch of raw content OR paste shared folder link (Google Drive/Dropbox URL)
 - **AC**:
-  - Version increments per order
-  - Delivery record includes duration if known
+  - User can upload files using existing R2 uploader
+  - User can paste a folder URL (validated as URL, stored on subscription)
+  - User can do both
+  - "Complete onboarding" button transitions to subscription dashboard
 
-### L7-02 (FE) Admin “Upload delivery” UI
-- **Scope**: Upload final reel file and create delivery.
+### L6-02 (BE) PATCH /api/subscriptions/me — NEW
+- **Scope**: Update shared_folder_url on current user's subscription
 - **AC**:
-  - Shows progress + success state
-  - Prevents wrong file types
+  - Only subscription owner can update
+  - Validates URL format
 
-### L7-03 (FE) Client delivery preview + download
-- **Scope**: Show latest delivery, provide signed download link.
+### L6-03 (FE) Subscription dashboard — NEW
+- **Scope**: Main portal view for subscribers at /dashboard. Shows:
+  - Subscription plan and status
+  - Content pieces: list with status, type, thumbnail
+  - Pieces used / total this month
+  - Shared folder link (editable)
+  - Link to billing portal
 - **AC**:
-  - Client can play preview (if using signed URL) and download
-  - Clear buttons: Approve / Request revision
+  - Filterable by piece status (all / pending / delivered / approved)
+  - Clear visual indicators for pieces needing action (approve/revise)
 
-### L7-04 (COPY/BE) “Delivered” email notification
-- **Scope**: Send email when status becomes `DELIVERED`.
-- **AC**:
-  - Sent once per delivery version (or once per status change)
+### L6-04 (BE) GET /api/subscriptions/me — NEW
+- **Scope**: Return current user's subscription with plan details, quota usage, shared folder URL
+- **AC**: Only authenticated user can access their own subscription
+
+### L6-05 (BE) GET /api/subscriptions/me/content-pieces — NEW
+- **Scope**: List content pieces for the current subscriber, paginated, filterable by status
+- **AC**: Returns piece ID, type, status, thumbnail, suggested_caption preview, created_at
 
 ---
 
-## Level 8 — Revisions + enforcement
+## Level 7 — Content piece flow (NEW)
 
-### L8-01 (FE) Request revision UI
-- **Scope**: Checkbox categories + free text + optional timestamp notes.
+### L7-01 (FE) Content piece detail page — NEW
+- **Scope**: Page at /dashboard/pieces/:id showing:
+  - Raw assets uploaded
+  - Delivery preview + download (if delivered)
+  - Suggested caption (copyable)
+  - Suggested song (name, artist, link)
+  - Suggested post date
+  - Approve / Request revision / Skip buttons
+  - Revision quota indicator
 - **AC**:
-  - User sees remaining included revisions
-  - Cannot submit empty revision request
+  - Approve transitions to APPROVED then READY_TO_POST
+  - Request revision enforces quota
+  - Skip marks as SKIPPED
 
-### L8-02 (BE) `POST /api/orders/:id/request-revision`
-- **Scope**: Enforce quota; transition to `REVISION_REQUESTED`; increment `revisions_used`.
-- **AC**:
-  - If quota exceeded: block (or show manual upsell message)
-  - Creates status history
+### L7-02 (BE) POST /api/content-pieces/:id/approve — NEW
+- **Scope**: Transition piece to APPROVED/READY_TO_POST
+- **AC**: Only piece owner can approve; creates status_history entry
 
-### L8-03 (FE/BE) Admin revision handling
-- **Scope**: Admin can set `REVISION_IN_PROGRESS` and upload a new delivery version.
-- **AC**:
-  - Status transitions follow PRD
-  - Delivery v2 triggers client notification
+### L7-03 (BE) POST /api/content-pieces/:id/request-revision — NEW
+- **Scope**: Transition piece to REVISION_REQUESTED; increment revisions_used; enforce quota
+- **AC**: Blocked if quota exceeded; requires revision notes
 
-### L8-04 (BE) `POST /api/orders/:id/approve` close order
-- **Scope**: Client approves; status → `COMPLETED`.
-- **AC**:
-  - Prevent approval without at least one delivery
-  - Creates status history
+### L7-04 (BE) POST /api/content-pieces/:id/skip — NEW
+- **Scope**: Transition piece to SKIPPED (subscriber decides not to use this piece)
+- **AC**: Only piece owner; creates status_history entry
+
+### L7-05 (BE) GET /api/content-pieces/:id — NEW
+- **Scope**: Return full piece detail: assets, deliveries, suggestion, status history
+- **AC**: Only piece owner or admin can access
 
 ---
 
-## Level 9 — Notifications + retention hooks
+## Level 8 — Admin dashboard (extended)
 
-### L9-01 (COPY/BE) Email templates for all key events
-- **Scope**: Payment, in-progress, delivered, revision delivered, completed.
-- **AC**:
-  - Consistent branding/copy
-  - Includes portal link and order summary
+### L8-01 (FE) Admin subscribers list — NEW
+- **Scope**: Page at /admin/subscribers showing all active subscribers with: email, plan, pieces used/total, shared folder link, subscription status
+- **AC**: Filterable by plan, sortable by pieces remaining
 
-### L9-02 (BE) Notification triggers on status changes
-- **Scope**: Centralize status transition helper that triggers emails.
-- **AC**:
-  - Each status transition is idempotent and email-safe
-  - No duplicate emails on retries
+### L8-02 (FE/BE) Admin subscriber detail — NEW
+- **Scope**: Page at /admin/subscribers/:id showing subscriber info + all their content pieces
+- **AC**: Admin can see shared folder link, content queue, billing status
 
-### L9-03 (OPS/INFRA) Daily retention job (Vercel Cron)
-- **Scope**: Daily job deletes:
-  - raw assets 30d after completion
-  - deliveries 90d after completion
-- **AC**:
-  - Job logs summary counts
-  - Safe delete (only keys that match completed orders)
+### L8-03 (BE) POST /api/admin/content-pieces — NEW
+- **Scope**: Admin creates a new content piece for a subscriber (e.g. after pulling raw content from shared folder)
+- **AC**: Sets status to RAW_RECEIVED, links to subscription, increments pieces_used_this_period
 
-### L9-04 (BE) Admin override: re-send emails / extend retention (optional)
-- **Scope**: Minimal controls for support.
-- **AC**:
-  - Only admin can trigger
+### L8-04 (FE/BE) Admin deliver with suggestion — NEW
+- **Scope**: When admin delivers a content piece, form includes: file upload + suggested caption + suggested song (name, artist, URL) + suggested post date
+- **AC**: Creates delivery record + updates piece with suggestion fields + transitions to DELIVERED
+
+### L8-05 (BE) GET /api/admin/subscribers — NEW
+- **Scope**: List all subscribers with plan info and quota usage
+- **AC**: Admin-only; paginated
+
+### L8-06 (FE/BE) Admin one-off orders — DONE (existing, kept)
+- Orders list with filters + SLA risk
+- Order detail + status actions
+
+---
+
+## Level 9 — Notifications + retention
+
+### L9-01 (COPY/BE) Email templates — UPDATED
+- **Scope**: Templates for all events:
+  - One-off: payment, in-progress, delivered, revision delivered, completed
+  - Subscription: welcome, piece in-progress, piece delivered (with suggestion preview), revision delivered, piece approved, renewal reminder, payment failed
+- **AC**: Consistent branding, includes portal link
+
+### L9-02 (BE) Notification triggers on status changes — UPDATED
+- **Scope**: Centralized status transition helper that triggers emails for both one-off orders and content pieces
+- **AC**: Idempotent, no duplicate emails
+
+### L9-03 (OPS/INFRA) Daily retention job — pending (same as v1)
+
+### L9-04 (BE) Subscription renewal piece reset — NEW
+- **Scope**: On subscription renewal (Stripe webhook: invoice.paid for subscription_cycle), reset pieces_used_this_period to 0
+- **AC**: Only resets on actual renewal, not initial payment
 
 ---
 
 ## Level 10 — Launch hardening
 
-### L10-01 (OPS) Rate limiting + abuse protection
-- **Scope**: Rate limit presign endpoint, magic-link requests, order creation.
-- **AC**:
-  - Basic abuse cases blocked
-  - Legit users not impacted at low volume
+### L10-01 (OPS) Rate limiting + abuse protection — pending
+### L10-02 (OPS) Logging + error tracking — pending
+### L10-03 (OPS) Security review checklist — pending
 
-### L10-02 (OPS) Logging + error tracking
-- **Scope**: Add structured logs; integrate Sentry (or equivalent).
-- **AC**:
-  - Errors include `order_id` context when applicable
-  - Stripe webhook failures are visible
+### L10-04 (FE/COPY) Public site launch polish — UPDATED
+- **Scope**: All public pages updated with agency positioning, subscription-first pricing, both flows explained
+- **AC**: Professional copy, clear CTAs, trust signals, mobile-first
 
-### L10-03 (OPS) Security review checklist
-- **Scope**: Validate storage privacy, signed URL TTLs, webhook signature checks.
-- **AC**:
-  - No public access to raw uploads
-  - Webhooks verified
-  - Admin routes protected
+### L10-05 (OPS) Basic metrics instrumentation — pending
 
-### L10-04 (FE/COPY) Public site launch polish
-- **Scope**: Home/Pricing/How/FAQ/Terms/Privacy; clear constraints and SLA.
-- **AC**:
-  - Constraints (raw limits, revision limits, no music delivery) visible on Pricing
-  - CTA to start wizard is obvious
-
-### L10-05 (OPS) Basic metrics instrumentation
-- **Scope**: Track: start order, upload complete, checkout started, checkout success, delivered, approved.
-- **AC**:
-  - Metrics visible in chosen analytics tool (or basic DB event log)
+### L10-06 (BE) Stripe customer portal integration — NEW
+- **Scope**: Integrate Stripe Billing customer portal so subscribers can manage their plan, update payment method, cancel
+- **AC**: Link from subscription dashboard opens Stripe-hosted portal
 
 ---
 
-## Cross-cutting tickets (apply across levels)
+## Cross-cutting tickets
 
-### X-01 (BE) Status machine helper + audit logging
-- **Scope**: Central function for transitions that writes `status_history` and triggers notifications.
-- **AC**:
-  - Disallows invalid transitions
-  - Always writes history rows
+### X-01 (BE) Status machine helper + audit logging — UPDATED
+- **Scope**: Central function for transitions for BOTH orders and content_pieces; writes status_history and triggers notifications
+- **AC**: Disallows invalid transitions for both state machines
 
-### X-02 (FE) “Constraints UI” components
-- **Scope**: Reusable UI snippets showing: raw limit, revisions included, SLA, music policy.
-- **AC**:
-  - Used on Pricing page and in wizard summary
+### X-02 (FE) Constraints UI components — DONE (needs brand color update)
 
-### X-03 (BE) Price calculation module
-- **Scope**: Single source of truth for price of tier + add-ons + editing level; Pro uses quote.
-- **AC**:
-  - Same calculation used in UI estimate and server checkout creation
+### X-03 (BE) Price calculation module — UPDATED
+- **Scope**: Single source of truth for one-off pricing AND subscription plan details (pieces/month, revisions/piece, price)
+- **AC**: Used in UI, checkout creation, and admin dashboard
 
+### X-04 (BE) Content suggestion module — NEW
+- **Scope**: Utility for storing and displaying content suggestions (caption + song + post date) on content pieces
+- **AC**: Used by admin deliver form and client piece detail page
