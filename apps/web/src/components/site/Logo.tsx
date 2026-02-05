@@ -7,27 +7,26 @@ export function Logo({
 }: {
   size?: "sm" | "md" | "lg";
 }) {
-  const box =
-    size === "sm" ? "h-8 w-8" : size === "lg" ? "h-12 w-12" : "h-10 w-10";
+  const dims =
+    size === "sm"
+      ? { w: 120, h: 28, className: "h-7" }
+      : size === "lg"
+        ? { w: 220, h: 48, className: "h-10 sm:h-11" }
+        : { w: 170, h: 38, className: "h-9" };
 
   return (
-    <Link href="/" className="inline-flex items-center">
-      <span
+    <Link href="/" className="inline-flex items-center" aria-label="rolik.io">
+      <Image
+        src="/logo.png"
+        alt=""
+        width={dims.w}
+        height={dims.h}
+        priority
         className={cn(
-          "relative overflow-hidden rounded-2xl ring-1 ring-zinc-200 dark:ring-zinc-800",
-          box,
+          "w-auto select-none object-contain",
+          dims.className,
         )}
-      >
-        <Image
-          src="/logo.png"
-          alt="rolik.io"
-          fill
-          sizes={size === "sm" ? "32px" : size === "lg" ? "48px" : "40px"}
-          className="object-contain"
-          priority
-        />
-      </span>
-      <span className="sr-only">rolik.io</span>
+      />
     </Link>
   );
 }
