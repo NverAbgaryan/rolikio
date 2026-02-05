@@ -15,7 +15,7 @@ export function SiteHeader() {
     <header className="sticky top-0 z-50 border-b border-zinc-200/70 bg-white/70 backdrop-blur dark:border-zinc-800/70 dark:bg-zinc-950/60">
       <Container className="flex h-16 items-center justify-between">
         <div className="flex items-center gap-8">
-          <Logo />
+          <Logo size="lg" />
           <nav className="hidden items-center gap-6 md:flex">
             {nav.map((item) => (
               <Link

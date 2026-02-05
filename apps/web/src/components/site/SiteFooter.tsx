@@ -7,7 +7,7 @@ export function SiteFooter() {
     <footer className="border-t border-zinc-200/70 py-10 dark:border-zinc-800/70">
       <Container className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center justify-between gap-6 md:justify-start">
-          <Logo />
+          <Logo size="sm" />
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
             Reels, done for you.
           </p>

@@ -1,22 +1,33 @@
 import Link from "next/link";
 import Image from "next/image";
+import { cn } from "@/lib/cn";
 
-export function Logo() {
+export function Logo({
+  size = "md",
+}: {
+  size?: "sm" | "md" | "lg";
+}) {
+  const box =
+    size === "sm" ? "h-8 w-8" : size === "lg" ? "h-12 w-12" : "h-10 w-10";
+
   return (
-    <Link href="/" className="inline-flex items-center gap-2">
-      <span className="relative h-8 w-8 overflow-hidden rounded-xl ring-1 ring-zinc-200 dark:ring-zinc-800">
+    <Link href="/" className="inline-flex items-center">
+      <span
+        className={cn(
+          "relative overflow-hidden rounded-2xl ring-1 ring-zinc-200 dark:ring-zinc-800",
+          box,
+        )}
+      >
         <Image
           src="/logo.png"
           alt="rolik.io"
           fill
-          sizes="32px"
+          sizes={size === "sm" ? "32px" : size === "lg" ? "48px" : "40px"}
           className="object-contain"
           priority
         />
       </span>
-      <span className="text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
-        rolik.io
-      </span>
+      <span className="sr-only">rolik.io</span>
     </Link>
   );
 }
