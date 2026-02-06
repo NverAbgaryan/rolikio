@@ -1,4 +1,5 @@
 import { Container } from "@/components/site/Container";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { OrderActions } from "./OrderActions";
 
 type PageProps = {
@@ -37,6 +38,8 @@ type OrderDto = {
 
 const statusLabels: Record<string, { label: string; color: string }> = {
   DRAFT: { label: "Draft", color: "bg-gray-100 text-gray-700" },
+  QUOTE_REQUESTED: { label: "Quote requested", color: "bg-purple-50 text-purple-700" },
+  QUOTED: { label: "Quoted", color: "bg-purple-50 text-purple-700" },
   AWAITING_PAYMENT: { label: "Awaiting payment", color: "bg-amber-50 text-amber-700" },
   PAID: { label: "Paid", color: "bg-blue-50 text-blue-700" },
   IN_REVIEW: { label: "In review", color: "bg-purple-50 text-purple-700" },
@@ -46,46 +49,69 @@ const statusLabels: Record<string, { label: string; color: string }> = {
   REVISION_IN_PROGRESS: { label: "Revision in progress", color: "bg-orange-50 text-orange-700" },
   COMPLETED: { label: "Completed", color: "bg-green-50 text-green-800" },
   CANCELED: { label: "Canceled", color: "bg-red-50 text-red-700" },
+  REFUNDED: { label: "Refunded", color: "bg-red-50 text-red-700" },
 };
+
+function ErrorPage({ message }: { message: string }) {
+  return (
+    <div>
+      <section className="border-b border-brand-navy/10 py-14">
+        <Container>
+          <h1 className="text-3xl font-bold tracking-tight text-brand-navy dark:text-white">Order</h1>
+        </Container>
+      </section>
+      <section className="py-14">
+        <Container className="max-w-2xl">
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-900 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-200">
+            <p className="font-semibold">Error</p>
+            <p className="mt-2">{message}</p>
+          </div>
+        </Container>
+      </section>
+    </div>
+  );
+}
 
 export default async function OrderDetailPage({ params, searchParams }: PageProps) {
   const { id } = await params;
   const sp = await searchParams;
-  const email = sp.email ?? "";
+  const emailParam = sp.email ?? "";
 
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3001"}/api/orders/${id}?email=${encodeURIComponent(email)}`,
-    { cache: "no-store" },
-  );
-
-  if (!res.ok) {
-    const data = (await res.json().catch(() => null)) as { error?: string; message?: string } | null;
-    return (
-      <div>
-        <section className="border-b border-brand-navy/10 py-14">
-          <Container>
-            <h1 className="text-3xl font-bold tracking-tight text-brand-navy dark:text-white">
-              Order
-            </h1>
-          </Container>
-        </section>
-        <section className="py-14">
-          <Container className="max-w-2xl">
-            <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-900 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-200">
-              <p className="font-semibold">Error</p>
-              <p className="mt-2">{data?.message || data?.error || `Request failed (${res.status})`}</p>
-              <p className="mt-3 text-xs opacity-80">
-                Make sure you provided the same email used on the order.
-              </p>
-            </div>
-          </Container>
-        </section>
-      </div>
-    );
+  let supabase;
+  try {
+    supabase = await createSupabaseServerClient();
+  } catch {
+    return <ErrorPage message="Service unavailable. Please try again." />;
   }
 
-  const data = (await res.json()) as { order: unknown };
-  const o = data.order as OrderDto;
+  // Check auth: prefer signed-in user, fall back to email param
+  let authedEmail: string | null = null;
+  try {
+    const { data } = await supabase.auth.getUser();
+    authedEmail = data.user?.email ?? null;
+  } catch {
+    // not signed in
+  }
+
+  const { data: order, error } = await supabase
+    .from("orders")
+    .select(
+      "id,email,tier,platform,vibe,editing_level,status,payment_status,ruul_checkout_url,revisions_included,revisions_used,due_at,brief_want,created_at,order_assets(id,kind,filename,size_bytes),order_references(id,url),deliveries(id,version_number,filename,storage_key,created_at,duration_seconds),status_history(id,from_status,to_status,actor,created_at),messages(id,sender,body,created_at)" as const,
+    )
+    .eq("id", id)
+    .single();
+
+  if (error || !order) {
+    return <ErrorPage message="Order not found." />;
+  }
+
+  // Authorization: must be signed in with matching email OR provide email param
+  const allowedEmail = authedEmail ?? emailParam;
+  if (!allowedEmail || order.email.toLowerCase() !== allowedEmail.toLowerCase()) {
+    return <ErrorPage message="You don\u2019t have access to this order. Sign in with the email used to create it." />;
+  }
+
+  const o = order as unknown as OrderDto;
   const sl = statusLabels[o.status] ?? { label: o.status, color: "bg-gray-100 text-gray-700" };
 
   return (
@@ -117,7 +143,6 @@ export default async function OrderDetailPage({ params, searchParams }: PageProp
 
       <section className="py-14">
         <Container className="grid gap-8 lg:grid-cols-[1fr_340px]">
-          {/* Main column */}
           <OrderActions
             orderId={o.id}
             status={o.status}
@@ -129,9 +154,7 @@ export default async function OrderDetailPage({ params, searchParams }: PageProp
             messages={o.messages ?? []}
           />
 
-          {/* Sidebar */}
           <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
-            {/* Summary */}
             <div className="rounded-2xl border border-brand-navy/10 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/5">
               <h2 className="text-sm font-bold text-brand-navy dark:text-white">Summary</h2>
               <dl className="mt-3 space-y-2 text-sm">
@@ -154,7 +177,6 @@ export default async function OrderDetailPage({ params, searchParams }: PageProp
               </dl>
             </div>
 
-            {/* Brief */}
             <div className="rounded-2xl border border-brand-navy/10 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/5">
               <h2 className="text-sm font-bold text-brand-navy dark:text-white">Brief</h2>
               <p className="mt-2 whitespace-pre-wrap text-sm text-brand-navy/60 dark:text-white/60">
@@ -162,7 +184,6 @@ export default async function OrderDetailPage({ params, searchParams }: PageProp
               </p>
             </div>
 
-            {/* Assets */}
             <div className="rounded-2xl border border-brand-navy/10 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/5">
               <h2 className="text-sm font-bold text-brand-navy dark:text-white">
                 Assets ({o.order_assets?.length ?? 0})
@@ -175,23 +196,19 @@ export default async function OrderDetailPage({ params, searchParams }: PageProp
               </ul>
             </div>
 
-            {/* References */}
             {(o.order_references ?? []).length > 0 ? (
               <div className="rounded-2xl border border-brand-navy/10 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/5">
                 <h2 className="text-sm font-bold text-brand-navy dark:text-white">References</h2>
                 <ul className="mt-2 space-y-1 text-sm">
                   {o.order_references.map((r) => (
-                    <li key={r.id}>
-                      <a href={r.url} target="_blank" rel="noopener noreferrer" className="text-brand-coral hover:underline">
-                        {r.url.length > 50 ? `${r.url.slice(0, 50)}...` : r.url}
-                      </a>
+                    <li key={r.id} className="truncate text-brand-coral hover:underline">
+                      {r.url}
                     </li>
                   ))}
                 </ul>
               </div>
             ) : null}
 
-            {/* Timeline */}
             <div className="rounded-2xl border border-brand-navy/10 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/5">
               <h2 className="text-sm font-bold text-brand-navy dark:text-white">Timeline</h2>
               <div className="mt-3 space-y-2 text-sm">
@@ -209,7 +226,7 @@ export default async function OrderDetailPage({ params, searchParams }: PageProp
                     </div>
                   ))}
                 {(o.status_history ?? []).length === 0 ? (
-                  <p className="text-brand-navy/40 dark:text-white/40">\u2014</p>
+                  <p className="text-brand-navy/40 dark:text-white/40">{"\u2014"}</p>
                 ) : null}
               </div>
             </div>

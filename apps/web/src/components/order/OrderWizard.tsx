@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/site/Button";
 import { cn } from "@/lib/cn";
 
@@ -133,6 +134,7 @@ function StepPill({
 }
 
 export function OrderWizard() {
+  const router = useRouter();
   const [step, setStep] = useState<Step>("choose");
   const [draft, setDraft] = useState<OrderDraft>({
     email: "",
@@ -412,6 +414,8 @@ export function OrderWizard() {
         return;
       }
       setBriefState({ type: "saved", status: data.status });
+      // Redirect to order detail page
+      router.push(`/orders/${orderId}?email=${encodeURIComponent(draft.email)}`);
     } catch (e) {
       setBriefState({
         type: "error",
@@ -932,7 +936,7 @@ export function OrderWizard() {
                   Review
                 </h2>
                 <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-                  This is a UI-only MVP skeleton (backend + Stripe are next).
+                  Review your order details and submit.
                 </p>
               </div>
 
@@ -1013,13 +1017,13 @@ export function OrderWizard() {
 
               {draft.editingLevel === "pro" ? (
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
-                  Pro/Complex is quote-only. Next we’ll implement: quote request →
-                  admin pricing → payment.
+                  Pro/Complex editing requires a custom quote. After submitting,
+                  our team will review your brief and send you a quote before payment.
                 </div>
               ) : (
                 <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900/30 dark:text-zinc-300">
-                  Next we’ll implement: draft order → presigned uploads → Stripe
-                  checkout → client portal.
+                  After submitting, we will send you a payment link. Once
+                  paid, your order enters production with delivery in 48–72h.
                 </div>
               )}
 

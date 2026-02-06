@@ -1,6 +1,5 @@
 import Link from "next/link";
-
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3001";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type Order = {
   id: string;
@@ -65,15 +64,18 @@ function fmtDate(v: string | null) {
 }
 
 export default async function AdminOrdersPage() {
-  const res = await fetch(`${SITE_URL}/api/admin/orders`, {
-    cache: "no-store",
-    headers: { cookie: "" },
-  });
-
   let orders: Order[] = [];
-  if (res.ok) {
-    const data = (await res.json()) as { orders: Order[] };
-    orders = data.orders;
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data } = await supabase
+      .from("orders")
+      .select("id,email,tier,platform,content_type,editing_level,status,payment_status,price_cents,due_at,created_at")
+      .order("created_at", { ascending: false })
+      .limit(100);
+    orders = (data as Order[]) ?? [];
+  } catch {
+    // DB not available
   }
 
   return (
