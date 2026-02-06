@@ -7,7 +7,7 @@ const briefSchema = z.object({
   want: z.string().min(1).max(5000),
   avoid: z.string().max(5000).optional().default(""),
   mustInclude: z.string().max(5000).optional().default(""),
-  references: z.array(z.string().url()).max(5).default([]),
+  references: z.array(z.string().max(2000)).max(5).default([]),
 });
 
 export async function POST(
