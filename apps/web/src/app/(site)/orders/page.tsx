@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Container } from "@/components/site/Container";
 import { Button } from "@/components/site/Button";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getSignedDownloadUrl } from "@/lib/r2/signed-url";
 
 export const metadata: Metadata = {
   title: "My Orders",
@@ -61,6 +63,7 @@ type OrderAsset = {
   kind: string;
   filename: string;
   mime_type: string;
+  storage_key: string;
 };
 
 type OrderDelivery = {
@@ -103,12 +106,26 @@ export default async function MyOrdersPage() {
   const { data: orders } = await supabase
     .from("orders")
     .select(
-      "id,tier,platform,vibe,editing_level,status,payment_status,brief_want,due_at,created_at,order_assets(id,kind,filename,mime_type),deliveries(id,version_number,filename)",
+      "id,tier,platform,vibe,editing_level,status,payment_status,brief_want,due_at,created_at,order_assets(id,kind,filename,mime_type,storage_key),deliveries(id,version_number,filename)",
     )
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
 
   const orderList = (orders as Order[]) ?? [];
+
+  // Generate signed URLs for the first image asset of each order (for thumbnails)
+  const thumbnailUrls: Record<string, string> = {};
+  await Promise.all(
+    orderList.map(async (o) => {
+      const imageAsset = o.order_assets?.find(
+        (a) => a.kind === "image" || a.mime_type?.startsWith("image/"),
+      );
+      if (imageAsset?.storage_key) {
+        const url = await getSignedDownloadUrl(imageAsset.storage_key, 3600);
+        if (url) thumbnailUrls[o.id] = url;
+      }
+    }),
+  );
 
   return (
     <div>
@@ -167,7 +184,23 @@ export default async function MyOrdersPage() {
                     className="group flex flex-col overflow-hidden rounded-2xl border border-brand-navy/10 bg-white shadow-sm transition-all hover:shadow-lg hover:border-brand-coral/30 dark:border-white/10 dark:bg-white/5"
                   >
                     {/* Media thumbnail area */}
-                    <div className="relative flex h-44 items-center justify-center bg-gradient-to-br from-brand-navy/5 to-brand-coral/5 dark:from-brand-navy dark:to-brand-navy">
+                    <div className="relative flex h-48 items-center justify-center overflow-hidden bg-gradient-to-br from-brand-navy/5 to-brand-coral/5 dark:from-brand-navy dark:to-brand-navy">
+                      {/* Actual image preview */}
+                      {thumbnailUrls[o.id] ? (
+                        <Image
+                          src={thumbnailUrls[o.id]}
+                          alt=""
+                          fill
+                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                          className="object-cover transition-transform duration-300 group-hover:scale-105"
+                          unoptimized
+                        />
+                      ) : null}
+
+                      {/* Overlay for text readability when image exists */}
+                      {thumbnailUrls[o.id] ? (
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-black/30" />
+                      ) : null}
                       {/* Platform badge */}
                       <div className="absolute left-3 top-3 flex items-center gap-1.5">
                         <span className="rounded-lg bg-white/90 px-2 py-1 text-xs font-bold text-brand-navy shadow-sm backdrop-blur dark:bg-brand-navy/90 dark:text-white">
@@ -185,50 +218,53 @@ export default async function MyOrdersPage() {
                         </span>
                       </div>
 
-                      {/* Center content */}
-                      <div className="flex flex-col items-center gap-2 text-brand-navy/30 dark:text-white/30">
-                        {hasDelivery ? (
-                          <div className="flex flex-col items-center">
-                            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" className="text-brand-coral">
-                              <path d="M5 3l14 9-14 9V3z" fill="currentColor" />
-                            </svg>
-                            <span className="mt-1 text-xs font-semibold text-brand-coral">
-                              Delivery ready
-                            </span>
-                          </div>
-                        ) : (
-                          <>
+                      {/* Center content (only when no image thumbnail) */}
+                      {!thumbnailUrls[o.id] ? (
+                        <div className="flex flex-col items-center gap-2 text-brand-navy/30 dark:text-white/30">
+                          {hasDelivery ? (
+                            <div className="flex flex-col items-center">
+                              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" className="text-brand-coral">
+                                <path d="M5 3l14 9-14 9V3z" fill="currentColor" />
+                              </svg>
+                              <span className="mt-1 text-xs font-semibold text-brand-coral">
+                                Delivery ready
+                              </span>
+                            </div>
+                          ) : totalAssets > 0 ? (
                             <div className="flex items-center gap-3">
                               {videoAssets.length > 0 ? (
-                                <div className="flex items-center gap-1">
-                                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                                    <rect x="2" y="4" width="20" height="16" rx="2" stroke="currentColor" strokeWidth="1.5" />
-                                    <path d="M10 9l5 3-5 3V9z" fill="currentColor" />
+                                <div className="flex items-center gap-1.5 rounded-lg bg-white/80 px-2 py-1 shadow-sm backdrop-blur">
+                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                    <path d="M5 3l14 9-14 9V3z" fill="currentColor" />
                                   </svg>
-                                  <span className="text-xs font-medium">{videoAssets.length}</span>
+                                  <span className="text-xs font-semibold">{videoAssets.length} video{videoAssets.length > 1 ? "s" : ""}</span>
                                 </div>
                               ) : null}
                               {imageAssets.length > 0 ? (
-                                <div className="flex items-center gap-1">
-                                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                                <div className="flex items-center gap-1.5 rounded-lg bg-white/80 px-2 py-1 shadow-sm backdrop-blur">
+                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                                     <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="1.5" />
                                     <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" />
-                                    <path d="M3 16l5-5 4 4 3-3 6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                                   </svg>
-                                  <span className="text-xs font-medium">{imageAssets.length}</span>
+                                  <span className="text-xs font-semibold">{imageAssets.length} photo{imageAssets.length > 1 ? "s" : ""}</span>
                                 </div>
                               ) : null}
                             </div>
-                            {totalAssets > 0 ? (
-                              <span className="text-xs">
-                                {totalAssets} file{totalAssets === 1 ? "" : "s"} uploaded
-                              </span>
-                            ) : (
-                              <span className="text-xs">No files yet</span>
-                            )}
-                          </>
-                        )}
-                      </div>
+                          ) : (
+                            <span className="text-xs">No files yet</span>
+                          )}
+                        </div>
+                      ) : (
+                        // File count badge on top of image
+                        totalAssets > 0 ? (
+                          <div className="absolute bottom-3 left-3 z-10 flex items-center gap-1.5 rounded-lg bg-black/50 px-2 py-1 text-white backdrop-blur">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                              <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="1.5" />
+                            </svg>
+                            <span className="text-xs font-semibold">{totalAssets}</span>
+                          </div>
+                        ) : null
+                      )}
 
                       {/* Action needed overlay */}
                       {needsAction ? (
