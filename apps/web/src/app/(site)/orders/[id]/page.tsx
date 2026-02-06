@@ -105,10 +105,12 @@ export default async function OrderDetailPage({ params, searchParams }: PageProp
     return <ErrorPage message="Order not found." />;
   }
 
-  // Authorization: must be signed in with matching email OR provide email param
-  const allowedEmail = authedEmail ?? emailParam;
-  if (!allowedEmail || order.email.toLowerCase() !== allowedEmail.toLowerCase()) {
-    return <ErrorPage message="You don\u2019t have access to this order. Sign in with the email used to create it." />;
+  // Authorization: allow if signed-in email matches OR email param matches
+  const orderEmail = order.email.toLowerCase();
+  const hasAuthAccess = authedEmail && authedEmail.toLowerCase() === orderEmail;
+  const hasParamAccess = emailParam && emailParam.toLowerCase() === orderEmail;
+  if (!hasAuthAccess && !hasParamAccess) {
+    return <ErrorPage message="You don\u2019t have access to this order. Sign in with the email used to create it, or check the link." />;
   }
 
   const o = order as unknown as OrderDto;
