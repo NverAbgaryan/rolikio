@@ -190,14 +190,54 @@ export function OrderWizard() {
   }
 
   function ensureUploadItems(newFiles: File[]) {
-    setUploads(
-      newFiles.map((file) => ({
-        file,
-        kind: file.type.startsWith("image/") ? "image" : "video",
-        status: "queued",
-        progress: 0,
-      })),
-    );
+    const items: UploadItem[] = newFiles.map((file) => ({
+      file,
+      kind: file.type.startsWith("image/") ? "image" : "video",
+      status: "queued" as const,
+      progress: 0,
+    }));
+    setUploads(items);
+    // Auto-start uploads immediately
+    void uploadItems(items);
+  }
+
+  async function uploadItems(items: UploadItem[]) {
+    for (let idx = 0; idx < items.length; idx++) {
+      const current = items[idx]!;
+      if (current.status === "done") continue;
+
+      setUploads((prev) =>
+        prev.map((u, i) =>
+          i === idx ? { ...u, status: "uploading", progress: 0, error: undefined } : u,
+        ),
+      );
+
+      try {
+        const { key, url } = await presign(sessionId, current);
+        setUploads((prev) =>
+          prev.map((u, i) => (i === idx ? { ...u, storageKey: key } : u)),
+        );
+        await uploadViaXhr(url, current.file, (pct) => {
+          setUploads((prev) => prev.map((u, i) => (i === idx ? { ...u, progress: pct } : u)));
+        });
+        setUploads((prev) =>
+          prev.map((u, i) => (i === idx ? { ...u, status: "done", progress: 100 } : u)),
+        );
+      } catch (e) {
+        setUploads((prev) =>
+          prev.map((u, i) =>
+            i === idx
+              ? {
+                  ...u,
+                  status: "error",
+                  error: e instanceof Error ? e.message : "Upload failed",
+                }
+              : u,
+          ),
+        );
+        return;
+      }
+    }
   }
 
   async function createDraftOrderAndReturnId() {
@@ -310,45 +350,12 @@ export function OrderWizard() {
     }
   }
 
-  async function startUploads() {
-    // Upload files to R2 using a temp session ID as key prefix.
-    // Assets are registered on the real order later in the Review step.
-    for (let idx = 0; idx < uploads.length; idx++) {
-      const current = uploads[idx]!;
-      if (current.status === "done") continue;
-
-      setUploads((prev) =>
-        prev.map((u, i) =>
-          i === idx ? { ...u, status: "uploading", progress: 0, error: undefined } : u,
-        ),
-      );
-
-      try {
-        const { key, url } = await presign(sessionId, current);
-        setUploads((prev) =>
-          prev.map((u, i) => (i === idx ? { ...u, storageKey: key } : u)),
-        );
-        await uploadViaXhr(url, current.file, (pct) => {
-          setUploads((prev) => prev.map((u, i) => (i === idx ? { ...u, progress: pct } : u)));
-        });
-        setUploads((prev) =>
-          prev.map((u, i) => (i === idx ? { ...u, status: "done", progress: 100 } : u)),
-        );
-      } catch (e) {
-        setUploads((prev) =>
-          prev.map((u, i) =>
-            i === idx
-              ? {
-                  ...u,
-                  status: "error",
-                  error: e instanceof Error ? e.message : "Upload failed",
-                }
-              : u,
-          ),
-        );
-        return;
-      }
-    }
+  function retryUploads() {
+    const items = uploads.map((u) =>
+      u.status === "error" ? { ...u, status: "queued" as const, error: undefined, progress: 0 } : u,
+    );
+    setUploads(items);
+    void uploadItems(items);
   }
 
   async function submitOrder() {
@@ -748,15 +755,15 @@ export function OrderWizard() {
                   Back
                 </Button>
                 <div className="flex items-center gap-2">
-                  <Button
-                    variant="secondary"
-                    onClick={startUploads}
-                    disabled={uploads.length === 0 || uploads.every((u) => u.status === "done")}
-                  >
-                    Upload files
-                  </Button>
+                  {uploads.some((u) => u.status === "error") ? (
+                    <Button variant="secondary" onClick={retryUploads} size="sm">
+                      Retry failed
+                    </Button>
+                  ) : null}
                   <Button onClick={goNext} disabled={!canContinueUpload}>
-                    Continue
+                    {uploads.length > 0 && uploads.some((u) => u.status === "uploading")
+                      ? "Uploading..."
+                      : "Continue"}
                   </Button>
                 </div>
               </div>
