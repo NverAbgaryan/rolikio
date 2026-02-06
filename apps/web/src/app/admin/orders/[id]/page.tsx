@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/site/Button";
 
@@ -43,6 +43,12 @@ export default function AdminOrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
   const [ruulUrl, setRuulUrl] = useState("");
+  const [deliveryFile, setDeliveryFile] = useState<File | null>(null);
+  const [deliveryUploading, setDeliveryUploading] = useState(false);
+  const [deliveryProgress, setDeliveryProgress] = useState(0);
+  const deliveryInputRef = useRef<HTMLInputElement>(null);
+  const [msgBody, setMsgBody] = useState("");
+  const [sendingMsg, setSendingMsg] = useState(false);
 
   async function loadOrder() {
     const res = await fetch(`/api/admin/orders/${id}`);
@@ -61,6 +67,75 @@ export default function AdminOrderDetailPage() {
     loadOrder();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  async function uploadDelivery() {
+    if (!deliveryFile) return;
+    setDeliveryUploading(true);
+    setDeliveryProgress(0);
+    try {
+      // 1. Get presigned URL
+      const presignRes = await fetch("/api/uploads/presign", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          orderId: id,
+          kind: "video",
+          filename: deliveryFile.name,
+          mimeType: deliveryFile.type || "application/octet-stream",
+          sizeBytes: deliveryFile.size,
+        }),
+      });
+      const presignData = (await presignRes.json()) as { key: string; url: string };
+
+      // 2. Upload to R2
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("PUT", presignData.url);
+        if (deliveryFile.type) xhr.setRequestHeader("Content-Type", deliveryFile.type);
+        xhr.upload.onprogress = (evt) => {
+          if (evt.lengthComputable) setDeliveryProgress(Math.round((evt.loaded / evt.total) * 100));
+        };
+        xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`Upload failed (${xhr.status})`)));
+        xhr.onerror = () => reject(new Error("Upload failed"));
+        xhr.send(deliveryFile);
+      });
+
+      // 3. Register delivery
+      const res = await fetch(`/api/admin/orders/${id}/deliveries`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          storageKey: presignData.key,
+          filename: deliveryFile.name,
+        }),
+      });
+      const data = (await res.json()) as { ok?: boolean; version?: number; error?: string };
+      if (data.ok) {
+        setActionMsg(`Delivery v${data.version} uploaded`);
+        setDeliveryFile(null);
+        if (deliveryInputRef.current) deliveryInputRef.current.value = "";
+        loadOrder();
+      } else {
+        setActionMsg(data.error || "Delivery registration failed");
+      }
+    } catch (e) {
+      setActionMsg(e instanceof Error ? e.message : "Upload failed");
+    }
+    setDeliveryUploading(false);
+  }
+
+  async function sendAdminMessage() {
+    if (!msgBody.trim()) return;
+    setSendingMsg(true);
+    await fetch(`/api/orders/${id}/messages`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ body: msgBody }),
+    });
+    setMsgBody("");
+    setSendingMsg(false);
+    loadOrder();
+  }
 
   async function doAction(url: string, body?: object) {
     setActionMsg(null);
@@ -217,6 +292,32 @@ export default function AdminOrderDetailPage() {
           ))}
           {order.deliveries.length === 0 ? <li>No deliveries yet</li> : null}
         </ul>
+
+        {/* Upload delivery form */}
+        <div className="mt-4 border-t border-brand-navy/10 pt-4 dark:border-white/10">
+          <p className="text-xs font-semibold text-brand-navy/60 dark:text-white/60">Upload delivery</p>
+          <div className="mt-2 flex items-end gap-2">
+            <input
+              ref={deliveryInputRef}
+              type="file"
+              accept="video/*,image/*"
+              onChange={(e) => setDeliveryFile(e.target.files?.[0] ?? null)}
+              className="flex-1 text-sm file:mr-3 file:rounded-full file:border-0 file:bg-brand-coral file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white hover:file:bg-brand-coral-dark"
+            />
+            <Button
+              size="sm"
+              onClick={uploadDelivery}
+              disabled={!deliveryFile || deliveryUploading}
+            >
+              {deliveryUploading ? `${deliveryProgress}%` : "Upload"}
+            </Button>
+          </div>
+          {deliveryUploading ? (
+            <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-gray-100">
+              <div className="h-2 rounded-full bg-brand-coral" style={{ width: `${deliveryProgress}%` }} />
+            </div>
+          ) : null}
+        </div>
       </div>
 
       {/* Messages */}
@@ -237,6 +338,23 @@ export default function AdminOrderDetailPage() {
           {order.messages.length === 0 ? (
             <p className="text-sm text-brand-navy/40 dark:text-white/40">No messages</p>
           ) : null}
+        </div>
+        <div className="mt-4 flex gap-2 border-t border-brand-navy/10 pt-4 dark:border-white/10">
+          <input
+            value={msgBody}
+            onChange={(e) => setMsgBody(e.target.value)}
+            placeholder="Reply as admin..."
+            className="h-9 flex-1 rounded-lg border border-brand-navy/10 bg-white px-3 text-sm dark:border-white/10 dark:bg-white/5"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                sendAdminMessage();
+              }
+            }}
+          />
+          <Button size="sm" variant="secondary" onClick={sendAdminMessage} disabled={sendingMsg || !msgBody.trim()}>
+            Send
+          </Button>
         </div>
       </div>
 
