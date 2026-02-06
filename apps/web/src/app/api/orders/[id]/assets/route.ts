@@ -25,8 +25,8 @@ export async function POST(
     );
   }
 
-  // Basic safety: require key namespace to match the order.
-  if (!parsed.data.storageKey.startsWith(`orders/${id}/`)) {
+  // Basic safety: require key to be within orders/ namespace.
+  if (!parsed.data.storageKey.startsWith("orders/")) {
     return NextResponse.json(
       { error: "invalid_storage_key" },
       { status: 400 },

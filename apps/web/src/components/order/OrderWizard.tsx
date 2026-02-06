@@ -151,6 +151,7 @@ export function OrderWizard() {
     | { type: "error"; message: string }
   >({ type: "idle" });
   const [uploads, setUploads] = useState<UploadItem[]>([]);
+  const [sessionId] = useState(() => crypto.randomUUID());
   const [briefState, setBriefState] = useState<
     | { type: "idle" }
     | { type: "saving" }
@@ -310,9 +311,8 @@ export function OrderWizard() {
   }
 
   async function startUploads() {
-    const orderId = await createDraftOrderAndReturnId();
-    if (!orderId) return;
-
+    // Upload files to R2 using a temp session ID as key prefix.
+    // Assets are registered on the real order later in the Review step.
     for (let idx = 0; idx < uploads.length; idx++) {
       const current = uploads[idx]!;
       if (current.status === "done") continue;
@@ -324,14 +324,13 @@ export function OrderWizard() {
       );
 
       try {
-        const { key, url } = await presign(orderId, current);
+        const { key, url } = await presign(sessionId, current);
         setUploads((prev) =>
           prev.map((u, i) => (i === idx ? { ...u, storageKey: key } : u)),
         );
         await uploadViaXhr(url, current.file, (pct) => {
           setUploads((prev) => prev.map((u, i) => (i === idx ? { ...u, progress: pct } : u)));
         });
-        await registerAsset(orderId, { ...current, storageKey: key });
         setUploads((prev) =>
           prev.map((u, i) => (i === idx ? { ...u, status: "done", progress: 100 } : u)),
         );
@@ -352,19 +351,37 @@ export function OrderWizard() {
     }
   }
 
-  async function submitBrief() {
-    if (createState.type !== "created") {
-      setBriefState({ type: "error", message: "Create the order first." });
-      return;
-    }
+  async function submitOrder() {
     setBriefState({ type: "saving" });
     try {
+      // 1. Create order
+      let orderId = createState.type === "created" ? createState.id : null;
+      if (!orderId) {
+        orderId = await createDraftOrderAndReturnId();
+        if (!orderId) {
+          setBriefState({ type: "error", message: createState.type === "error" ? createState.message : "Failed to create order." });
+          return;
+        }
+      }
+
+      // 2. Register uploaded assets on the real order
+      for (const upload of uploads) {
+        if (upload.status === "done" && upload.storageKey) {
+          try {
+            await registerAsset(orderId, upload);
+          } catch {
+            // Asset may already be registered if user retries; continue
+          }
+        }
+      }
+
+      // 3. Save brief + references
       const refs = draft.brief.references
         .map((u) => u.trim())
         .filter(Boolean)
         .slice(0, 5);
 
-      const res = await fetch(`/api/orders/${createState.id}/brief`, {
+      const res = await fetch(`/api/orders/${orderId}/brief`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -1004,20 +1021,21 @@ export function OrderWizard() {
                   Back
                 </Button>
                 <Button
-                  onClick={submitBrief}
+                  onClick={submitOrder}
                   disabled={
                     briefState.type === "saving" ||
                     briefState.type === "saved" ||
-                    createState.type !== "created"
+                    !isValidEmail ||
+                    !draft.brief.want.trim()
                   }
                 >
                   {briefState.type === "saving"
-                    ? "Saving..."
+                    ? "Submitting..."
                     : briefState.type === "saved"
-                      ? "Saved"
+                      ? "Order submitted"
                       : draft.editingLevel === "pro"
                         ? "Request quote"
-                        : "Continue to payment"}
+                        : "Submit order"}
                 </Button>
               </div>
             </div>
