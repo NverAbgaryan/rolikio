@@ -29,10 +29,11 @@ export function LoginForm() {
       return;
     }
 
-    const origin = window.location.origin;
+    const siteUrl =
+      process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: `${origin}/auth/callback` },
+      options: { emailRedirectTo: `${siteUrl}/auth/callback` },
     });
     if (error) {
       setStatus({ type: "error", message: error.message });
