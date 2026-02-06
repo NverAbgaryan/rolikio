@@ -1,4 +1,12 @@
+import type { Metadata } from "next";
 import { Container } from "@/components/site/Container";
+
+export const metadata: Metadata = {
+  title: "Privacy Policy",
+  description:
+    "How rolik.io collects, uses, and protects your data including uploaded content, personal information, and payment details.",
+  alternates: { canonical: "/privacy" },
+};
 
 export default function PrivacyPage() {
   return (

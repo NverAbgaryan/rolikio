@@ -1,5 +1,13 @@
+import type { Metadata } from "next";
 import { Container } from "@/components/site/Container";
 import { Button } from "@/components/site/Button";
+
+export const metadata: Metadata = {
+  title: "Start Your Content Editing Subscription",
+  description:
+    "Choose Starter ($299/mo, 8 pieces) or Growth ($599/mo, 20 pieces). Professional editing, song suggestions, and caption ideas delivered weekly. Cancel anytime.",
+  alternates: { canonical: "/subscribe" },
+};
 
 export default function SubscribePage() {
   return (

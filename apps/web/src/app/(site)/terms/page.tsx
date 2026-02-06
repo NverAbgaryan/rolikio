@@ -1,4 +1,12 @@
+import type { Metadata } from "next";
 import { Container } from "@/components/site/Container";
+
+export const metadata: Metadata = {
+  title: "Terms of Service",
+  description:
+    "Terms governing the use of rolik.io content editing services, subscriptions, and one-off orders.",
+  alternates: { canonical: "/terms" },
+};
 
 export default function TermsPage() {
   return (

@@ -1,5 +1,41 @@
+import type { Metadata } from "next";
 import { Container } from "@/components/site/Container";
 import { Button } from "@/components/site/Button";
+import { JsonLd } from "@/components/seo/JsonLd";
+
+export const metadata: Metadata = {
+  title: "FAQ \u2014 Content Editing Questions Answered",
+  description:
+    "Answers about subscriptions, one-off orders, revisions, delivery times, music policy, and how rolik.io handles your content editing.",
+  alternates: { canonical: "/faq" },
+};
+
+const faqItems = [
+  { q: "What do I get with a subscription?", a: "A dedicated content editing team that handles your reels and photo posts every month. You share raw footage and photos, and we deliver polished, post-ready content with caption suggestions and song recommendations." },
+  { q: "How many pieces do I get per month?", a: "Starter plan includes 8 content pieces per month. Growth plan includes 20 pieces per month. A piece can be a reel, photo edit, carousel, or story." },
+  { q: "How do I share my raw content?", a: "Two ways: upload directly in the rolik.io app, or share a Google Drive or Dropbox folder link. We access your raw material and select the best clips and photos to edit." },
+  { q: "Do you suggest what I should post?", a: "Yes. Every delivered piece comes with a suggested caption and, for reels, a song recommendation (name, artist, and link). Growth plan subscribers also get a weekly content calendar." },
+  { q: "Can I cancel anytime?", a: "Yes. No long-term contracts. Cancel through your subscription dashboard or Stripe billing portal. You keep access until the end of your billing period." },
+  { q: "What if I need more than 20 pieces?", a: "Contact us for a custom plan. We can scale to meet higher content volumes at a custom rate." },
+  { q: "Can I order without subscribing?", a: "Absolutely. One-off orders are available for anyone who needs a single reel or photo edit. No account or subscription required to start." },
+  { q: "What types of content can I order?", a: "Reels (15-120 seconds for Instagram, TikTok, or YouTube Shorts), single photo edits, carousel packs (5 photos), and story packs (3 stories)." },
+  { q: "How fast is delivery?", a: "Standard delivery is 48-72 hours after payment, uploads, and brief are complete. Rush delivery (24h) is available as an add-on." },
+  { q: "Can I request complex effects or motion graphics?", a: "Yes. Choose the Pro/Complex editing level and we will review your brief and send a custom quote before any payment is taken." },
+  { q: "How do revisions work?", a: "Each piece includes 1-2 revisions depending on your plan or order tier. A revision is one consolidated request with specific changes. Extra revisions are available as a paid add-on." },
+  { q: "What about music and copyright?", a: "We suggest songs for every reel (trending, genre-matched). We deliver reels without copyrighted audio files to protect you. Add the suggested song directly in Instagram, TikTok, or YouTube when you post." },
+  { q: "Is my content secure?", a: "Yes. All uploads are stored privately with encrypted connections. Download links are time-limited and expire automatically. Raw content is deleted 30 days after completion." },
+  { q: "Is this a video editing tool?", a: "No. rolik.io is a done-for-you service. You provide raw material and a brief (or just a shared folder), and our team delivers polished, post-ready content." },
+];
+
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: faqItems.map((item) => ({
+    "@type": "Question",
+    name: item.q,
+    acceptedAnswer: { "@type": "Answer", text: item.a },
+  })),
+};
 
 function QA({ q, a }: { q: string; a: string }) {
   return (
@@ -15,15 +51,20 @@ function QA({ q, a }: { q: string; a: string }) {
 }
 
 export default function FAQPage() {
+  const subs = faqItems.slice(0, 6);
+  const oneOff = faqItems.slice(6, 10);
+  const general = faqItems.slice(10);
+
   return (
     <div>
+      <JsonLd data={faqSchema} />
       <section className="bg-gradient-to-br from-brand-coral-light via-white to-brand-orange-light py-16 dark:from-brand-navy dark:via-brand-navy dark:to-brand-navy">
         <Container className="mx-auto max-w-2xl text-center">
           <p className="text-xs font-semibold uppercase tracking-widest text-brand-coral">
             FAQ
           </p>
           <h1 className="mt-3 text-3xl font-bold tracking-tight text-brand-navy sm:text-4xl dark:text-white">
-            Everything you need to know
+            Frequently Asked Questions About Our Editing Service
           </h1>
           <p className="mt-4 text-base leading-7 text-brand-navy/60 dark:text-white/60">
             Answers about subscriptions, one-off orders, content types,
@@ -38,74 +79,27 @@ export default function FAQPage() {
             Subscriptions
           </h3>
           <div className="grid gap-4 lg:grid-cols-2">
-            <QA
-              q="What do I get with a subscription?"
-              a="A dedicated content editing team that handles your reels and photo posts every month. You share raw footage and photos, and we deliver polished, post-ready content with caption suggestions and song recommendations."
-            />
-            <QA
-              q="How many pieces do I get per month?"
-              a="Starter plan includes 8 content pieces per month. Growth plan includes 20 pieces per month. A piece can be a reel, photo edit, carousel, or story."
-            />
-            <QA
-              q="How do I share my raw content?"
-              a="Two ways: upload directly in the rolik.io app, or share a Google Drive or Dropbox folder link. We access your raw material and select the best clips and photos to edit."
-            />
-            <QA
-              q="Do you suggest what I should post?"
-              a="Yes. Every delivered piece comes with a suggested caption and, for reels, a song recommendation (name, artist, and link). Growth plan subscribers also get a weekly content calendar."
-            />
-            <QA
-              q="Can I cancel anytime?"
-              a="Yes. No long-term contracts. Cancel through your subscription dashboard or Stripe billing portal. You keep access until the end of your billing period."
-            />
-            <QA
-              q="What if I need more than 20 pieces?"
-              a="Contact us for a custom plan. We can scale to meet higher content volumes at a custom rate."
-            />
+            {subs.map((item) => (
+              <QA key={item.q} q={item.q} a={item.a} />
+            ))}
           </div>
 
           <h3 className="mb-6 mt-12 text-sm font-bold uppercase tracking-wider text-brand-navy/40 dark:text-white/40">
             One-off orders
           </h3>
           <div className="grid gap-4 lg:grid-cols-2">
-            <QA
-              q="Can I order without subscribing?"
-              a="Absolutely. One-off orders are available for anyone who needs a single reel or photo edit. No account or subscription required to start."
-            />
-            <QA
-              q="What types of content can I order?"
-              a="Reels (15-120 seconds for Instagram, TikTok, or YouTube Shorts), single photo edits, carousel packs (5 photos), and story packs (3 stories)."
-            />
-            <QA
-              q="How fast is delivery?"
-              a="Standard delivery is 48-72 hours after payment, uploads, and brief are complete. Rush delivery (24h) is available as an add-on."
-            />
-            <QA
-              q="Can I request complex effects or motion graphics?"
-              a="Yes. Choose the Pro/Complex editing level and we will review your brief and send a custom quote before any payment is taken."
-            />
+            {oneOff.map((item) => (
+              <QA key={item.q} q={item.q} a={item.a} />
+            ))}
           </div>
 
           <h3 className="mb-6 mt-12 text-sm font-bold uppercase tracking-wider text-brand-navy/40 dark:text-white/40">
             General
           </h3>
           <div className="grid gap-4 lg:grid-cols-2">
-            <QA
-              q="How do revisions work?"
-              a="Each piece includes 1-2 revisions depending on your plan or order tier. A revision is one consolidated request with specific changes. Extra revisions are available as a paid add-on."
-            />
-            <QA
-              q="What about music and copyright?"
-              a="We suggest songs for every reel (trending, genre-matched). We deliver reels without copyrighted audio files to protect you. Add the suggested song directly in Instagram, TikTok, or YouTube when you post."
-            />
-            <QA
-              q="Is my content secure?"
-              a="Yes. All uploads are stored privately with encrypted connections. Download links are time-limited and expire automatically. Raw content is deleted 30 days after completion."
-            />
-            <QA
-              q="Is this a video editing tool?"
-              a="No. rolik.io is a done-for-you service. You provide raw material and a brief (or just a shared folder), and our team delivers polished, post-ready content."
-            />
+            {general.map((item) => (
+              <QA key={item.q} q={item.q} a={item.a} />
+            ))}
           </div>
 
           <div className="mt-12 rounded-2xl bg-brand-navy p-8 text-center text-white">

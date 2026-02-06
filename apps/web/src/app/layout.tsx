@@ -12,10 +12,66 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://rolik.io";
+
 export const metadata: Metadata = {
-  title: "rolik.io — Reels, done for you.",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default:
+      "rolik.io — Professional Reels & Photo Editing for Businesses",
+    template: "%s | rolik.io",
+  },
   description:
-    "Upload your clips, share a reference, and we’ll deliver a post‑ready reel in 48–72h.",
+    "We edit your content so you don\u2019t have to. Professional reels, photo editing, and content suggestions for small businesses. Subscribe from $299/mo or order one-off.",
+  keywords: [
+    "video editing service",
+    "reel editing service",
+    "content editing for small business",
+    "instagram reels editing",
+    "tiktok video editing",
+    "photo editing service",
+    "social media content editing",
+    "content editing subscription",
+    "done for you reels",
+    "professional video editing",
+  ],
+  authors: [{ name: "rolik.io" }],
+  creator: "rolik.io",
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: SITE_URL,
+    siteName: "rolik.io",
+    title: "rolik.io — Professional Reels & Photo Editing for Businesses",
+    description:
+      "We edit your content so you don\u2019t have to. Professional reels, photo editing, and content suggestions. Subscribe or order one-off.",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "rolik.io — Content Editing Agency",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "rolik.io — Professional Reels & Photo Editing for Businesses",
+    description:
+      "We edit your content so you don\u2019t have to. Subscribe from $299/mo or order a single piece.",
+    images: ["/og-image.png"],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
 };
 
 export default function RootLayout({

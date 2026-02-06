@@ -1,6 +1,72 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Container } from "@/components/site/Container";
 import { Button } from "@/components/site/Button";
+import { JsonLd } from "@/components/seo/JsonLd";
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://rolik.io";
+
+const serviceSchema = {
+  "@context": "https://schema.org",
+  "@type": "Service",
+  serviceType: "Content Editing",
+  provider: {
+    "@type": "Organization",
+    name: "rolik.io",
+    url: SITE_URL,
+  },
+  areaServed: "Worldwide",
+  hasOfferCatalog: {
+    "@type": "OfferCatalog",
+    name: "Content Editing Plans",
+    itemListElement: [
+      {
+        "@type": "Offer",
+        name: "Starter Subscription",
+        description: "8 content pieces per month with song and caption suggestions",
+        price: "299",
+        priceCurrency: "USD",
+        priceSpecification: { "@type": "UnitPriceSpecification", billingDuration: "P1M" },
+      },
+      {
+        "@type": "Offer",
+        name: "Growth Subscription",
+        description: "20 content pieces per month with dedicated editor and weekly content calendar",
+        price: "599",
+        priceCurrency: "USD",
+        priceSpecification: { "@type": "UnitPriceSpecification", billingDuration: "P1M" },
+      },
+      {
+        "@type": "Offer",
+        name: "Quick Reel",
+        description: "15-30 second professionally edited reel",
+        price: "59",
+        priceCurrency: "USD",
+      },
+      {
+        "@type": "Offer",
+        name: "Standard Reel",
+        description: "30-60 second professionally edited reel",
+        price: "89",
+        priceCurrency: "USD",
+      },
+      {
+        "@type": "Offer",
+        name: "Full Reel",
+        description: "60-120 second professionally edited reel",
+        price: "159",
+        priceCurrency: "USD",
+      },
+    ],
+  },
+};
+
+export const metadata: Metadata = {
+  title: "Pricing \u2014 Subscription Plans & One-Off Editing",
+  description:
+    "Content editing subscriptions from $299/mo (8 pieces) or $599/mo (20 pieces). One-off reels from $59. Photo editing from $15. No contracts, cancel anytime.",
+  alternates: { canonical: "/pricing" },
+};
 
 function Check() {
   return (
@@ -123,6 +189,7 @@ function OneOffCard({
 export default function PricingPage() {
   return (
     <div>
+      <JsonLd data={serviceSchema} />
       {/* --- HEADER --- */}
       <section className="bg-gradient-to-br from-brand-coral-light via-white to-brand-orange-light py-16 dark:from-brand-navy dark:via-brand-navy dark:to-brand-navy">
         <Container className="mx-auto max-w-2xl text-center">
@@ -130,9 +197,10 @@ export default function PricingPage() {
             Pricing
           </p>
           <h1 className="mt-3 text-3xl font-bold tracking-tight text-brand-navy sm:text-4xl dark:text-white">
-            One team for all your content editing
+            Content Editing Plans and Pricing
           </h1>
           <p className="mx-auto mt-4 max-w-xl text-base leading-7 text-brand-navy/60 dark:text-white/60">
+            Affordable video editing subscription plans for small businesses.
             Subscribe for ongoing content management, or order individual
             pieces when you need them. No long-term contracts.
           </p>

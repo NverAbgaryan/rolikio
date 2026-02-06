@@ -1,5 +1,12 @@
+import type { Metadata } from "next";
 import { Container } from "@/components/site/Container";
 import { LoginForm } from "@/app/(site)/login/LoginForm";
+
+export const metadata: Metadata = {
+  title: "Sign In",
+  description: "Access your rolik.io client portal and order status via magic link.",
+  robots: { index: false, follow: false },
+};
 
 export default function LoginPage() {
   return (

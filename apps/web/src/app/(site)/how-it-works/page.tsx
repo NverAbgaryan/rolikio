@@ -1,5 +1,13 @@
+import type { Metadata } from "next";
 import { Container } from "@/components/site/Container";
 import { Button } from "@/components/site/Button";
+
+export const metadata: Metadata = {
+  title: "How It Works \u2014 Your Content, Professionally Edited",
+  description:
+    "Subscribe, share your raw footage, and we deliver edited reels and photos with song suggestions and captions. Two paths: monthly subscription or one-off orders.",
+  alternates: { canonical: "/how-it-works" },
+};
 
 export default function HowItWorksPage() {
   return (
@@ -11,11 +19,12 @@ export default function HowItWorksPage() {
             How it works
           </p>
           <h1 className="mt-3 text-3xl font-bold tracking-tight text-brand-navy sm:text-4xl dark:text-white">
-            Two ways to get professional content
+            How Our Content Editing Service Works
           </h1>
           <p className="mt-4 text-base leading-7 text-brand-navy/60 dark:text-white/60">
-            Subscribe for ongoing content management, or order a single piece
-            when you need it. Both paths get you professional results.
+            From raw footage to post-ready reels and photos in 48 hours.
+            Subscribe for ongoing social media content editing, or order a
+            single piece when you need it.
           </p>
         </Container>
       </section>

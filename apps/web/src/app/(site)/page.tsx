@@ -1,5 +1,13 @@
+import type { Metadata } from "next";
 import { Container } from "@/components/site/Container";
 import { Button } from "@/components/site/Button";
+
+export const metadata: Metadata = {
+  title: "Professional Video & Photo Editing for Businesses",
+  description:
+    "We edit your reels, photos, and stories so you can focus on your business. Song suggestions, caption ideas, and 48h delivery. Subscribe from $299/mo or order a single piece.",
+  alternates: { canonical: "/" },
+};
 
 function Pill({ children }: { children: React.ReactNode }) {
   return (
@@ -44,9 +52,10 @@ export default function HomePage() {
             </h1>
 
             <p className="max-w-xl text-lg leading-8 text-brand-navy/60 dark:text-white/60">
-              Professional reels and photo editing for creators and small
-              businesses. Subscribe for ongoing content management or order a
-              single piece. We edit, suggest songs, and tell you when to post.
+              Professional video editing service for Instagram Reels, TikTok,
+              and YouTube Shorts. Subscribe for ongoing social media content
+              editing or order a single piece. We edit, suggest songs, and tell
+              you when to post.
             </p>
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -85,11 +94,12 @@ export default function HomePage() {
               How it works
             </p>
             <h2 className="mt-3 text-3xl font-bold tracking-tight text-brand-navy sm:text-4xl dark:text-white">
-              Your content, professionally edited. Every week.
+              Your content editing service, on autopilot
             </h2>
             <p className="mt-4 text-base leading-7 text-brand-navy/60 dark:text-white/60">
-              Subscribe, share your raw footage and photos, and we handle
-              everything. You just approve and post.
+              Subscribe to a monthly reel editing and photo editing plan. Share
+              your raw footage, and we deliver post-ready content for Instagram,
+              TikTok, and YouTube Shorts every week.
             </p>
           </div>
 
