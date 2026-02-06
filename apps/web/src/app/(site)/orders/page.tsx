@@ -55,16 +55,17 @@ export default async function MyOrdersPage() {
   }
 
   const { data: userData } = await supabase.auth.getUser();
-  if (!userData.user?.email) {
+  if (!userData.user) {
     redirect("/login");
   }
 
-  const email = userData.user.email;
+  const userId = userData.user.id;
+  const email = userData.user.email ?? "";
 
   const { data: orders } = await supabase
     .from("orders")
     .select("id,tier,platform,vibe,editing_level,status,payment_status,due_at,created_at")
-    .eq("email", email)
+    .eq("user_id", userId)
     .order("created_at", { ascending: false });
 
   const orderList = (orders as Order[]) ?? [];

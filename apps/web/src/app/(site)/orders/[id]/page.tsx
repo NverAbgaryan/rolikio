@@ -1,10 +1,10 @@
+import { redirect } from "next/navigation";
 import { Container } from "@/components/site/Container";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { OrderActions } from "./OrderActions";
 
 type PageProps = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ email?: string }>;
 };
 
 function fmtDate(value: string | null | undefined) {
@@ -16,6 +16,7 @@ function fmtDate(value: string | null | undefined) {
 
 type OrderDto = {
   id: string;
+  user_id: string;
   email: string;
   tier: string;
   platform: string;
@@ -72,10 +73,8 @@ function ErrorPage({ message }: { message: string }) {
   );
 }
 
-export default async function OrderDetailPage({ params, searchParams }: PageProps) {
+export default async function OrderDetailPage({ params }: PageProps) {
   const { id } = await params;
-  const sp = await searchParams;
-  const emailParam = sp.email ?? "";
 
   let supabase;
   try {
@@ -84,19 +83,18 @@ export default async function OrderDetailPage({ params, searchParams }: PageProp
     return <ErrorPage message="Service unavailable. Please try again." />;
   }
 
-  // Check auth: prefer signed-in user, fall back to email param
-  let authedEmail: string | null = null;
-  try {
-    const { data } = await supabase.auth.getUser();
-    authedEmail = data.user?.email ?? null;
-  } catch {
-    // not signed in
+  // Require authentication
+  const { data: userData } = await supabase.auth.getUser();
+  if (!userData.user) {
+    redirect("/login");
   }
+
+  const currentUserId = userData.user.id;
 
   const { data: order, error } = await supabase
     .from("orders")
     .select(
-      "id,email,tier,platform,vibe,editing_level,status,payment_status,ruul_checkout_url,revisions_included,revisions_used,due_at,brief_want,created_at,order_assets(id,kind,filename,size_bytes),order_references(id,url),deliveries(id,version_number,filename,storage_key,created_at,duration_seconds),status_history(id,from_status,to_status,actor,created_at),messages(id,sender,body,created_at)" as const,
+      "id,user_id,email,tier,platform,vibe,editing_level,status,payment_status,ruul_checkout_url,revisions_included,revisions_used,due_at,brief_want,created_at,order_assets(id,kind,filename,size_bytes),order_references(id,url),deliveries(id,version_number,filename,storage_key,created_at,duration_seconds),status_history(id,from_status,to_status,actor,created_at),messages(id,sender,body,created_at)" as const,
     )
     .eq("id", id)
     .single();
@@ -105,12 +103,14 @@ export default async function OrderDetailPage({ params, searchParams }: PageProp
     return <ErrorPage message="Order not found." />;
   }
 
-  // Authorization: allow if signed-in email matches OR email param matches
-  const orderEmail = order.email.toLowerCase();
-  const hasAuthAccess = authedEmail && authedEmail.toLowerCase() === orderEmail;
-  const hasParamAccess = emailParam && emailParam.toLowerCase() === orderEmail;
-  if (!hasAuthAccess && !hasParamAccess) {
-    return <ErrorPage message="You don\u2019t have access to this order. Sign in with the email used to create it, or check the link." />;
+  // Authorization: must be the order owner
+  if (order.user_id !== currentUserId) {
+    // Also check admin
+    const adminEmails = (process.env.ADMIN_EMAILS ?? "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
+    const isAdmin = userData.user.email && adminEmails.includes(userData.user.email.toLowerCase());
+    if (!isAdmin) {
+      return <ErrorPage message="You don\u2019t have access to this order." />;
+    }
   }
 
   const o = order as unknown as OrderDto;
@@ -160,40 +160,22 @@ export default async function OrderDetailPage({ params, searchParams }: PageProp
             <div className="rounded-2xl border border-brand-navy/10 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/5">
               <h2 className="text-sm font-bold text-brand-navy dark:text-white">Summary</h2>
               <dl className="mt-3 space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <dt className="text-brand-navy/50 dark:text-white/50">Tier</dt>
-                  <dd className="font-medium text-brand-navy dark:text-white">{o.tier}</dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="text-brand-navy/50 dark:text-white/50">Platform</dt>
-                  <dd className="font-medium text-brand-navy dark:text-white">{o.platform}</dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="text-brand-navy/50 dark:text-white/50">Editing</dt>
-                  <dd className="font-medium text-brand-navy dark:text-white">{o.editing_level}</dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="text-brand-navy/50 dark:text-white/50">Revisions</dt>
-                  <dd className="font-medium text-brand-navy dark:text-white">{o.revisions_used}/{o.revisions_included}</dd>
-                </div>
+                <div className="flex justify-between"><dt className="text-brand-navy/50 dark:text-white/50">Tier</dt><dd className="font-medium text-brand-navy dark:text-white">{o.tier}</dd></div>
+                <div className="flex justify-between"><dt className="text-brand-navy/50 dark:text-white/50">Platform</dt><dd className="font-medium text-brand-navy dark:text-white">{o.platform}</dd></div>
+                <div className="flex justify-between"><dt className="text-brand-navy/50 dark:text-white/50">Editing</dt><dd className="font-medium text-brand-navy dark:text-white">{o.editing_level}</dd></div>
+                <div className="flex justify-between"><dt className="text-brand-navy/50 dark:text-white/50">Revisions</dt><dd className="font-medium text-brand-navy dark:text-white">{o.revisions_used}/{o.revisions_included}</dd></div>
               </dl>
             </div>
 
             <div className="rounded-2xl border border-brand-navy/10 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/5">
               <h2 className="text-sm font-bold text-brand-navy dark:text-white">Brief</h2>
-              <p className="mt-2 whitespace-pre-wrap text-sm text-brand-navy/60 dark:text-white/60">
-                {o.brief_want || "\u2014"}
-              </p>
+              <p className="mt-2 whitespace-pre-wrap text-sm text-brand-navy/60 dark:text-white/60">{o.brief_want || "\u2014"}</p>
             </div>
 
             <div className="rounded-2xl border border-brand-navy/10 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/5">
-              <h2 className="text-sm font-bold text-brand-navy dark:text-white">
-                Assets ({o.order_assets?.length ?? 0})
-              </h2>
+              <h2 className="text-sm font-bold text-brand-navy dark:text-white">Assets ({o.order_assets?.length ?? 0})</h2>
               <ul className="mt-2 space-y-1 text-sm text-brand-navy/60 dark:text-white/60">
-                {(o.order_assets ?? []).map((a) => (
-                  <li key={a.id}>{a.filename} &middot; {a.kind}</li>
-                ))}
+                {(o.order_assets ?? []).map((a) => (<li key={a.id}>{a.filename} &middot; {a.kind}</li>))}
                 {(o.order_assets ?? []).length === 0 ? <li>None</li> : null}
               </ul>
             </div>
@@ -202,11 +184,7 @@ export default async function OrderDetailPage({ params, searchParams }: PageProp
               <div className="rounded-2xl border border-brand-navy/10 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/5">
                 <h2 className="text-sm font-bold text-brand-navy dark:text-white">References</h2>
                 <ul className="mt-2 space-y-1 text-sm">
-                  {o.order_references.map((r) => (
-                    <li key={r.id} className="truncate text-brand-coral hover:underline">
-                      {r.url}
-                    </li>
-                  ))}
+                  {o.order_references.map((r) => (<li key={r.id} className="truncate text-brand-coral">{r.url}</li>))}
                 </ul>
               </div>
             ) : null}
@@ -214,22 +192,13 @@ export default async function OrderDetailPage({ params, searchParams }: PageProp
             <div className="rounded-2xl border border-brand-navy/10 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/5">
               <h2 className="text-sm font-bold text-brand-navy dark:text-white">Timeline</h2>
               <div className="mt-3 space-y-2 text-sm">
-                {(o.status_history ?? [])
-                  .sort((a, b) => (a.created_at > b.created_at ? -1 : 1))
-                  .slice(0, 10)
-                  .map((h) => (
-                    <div key={h.id} className="flex items-start justify-between gap-3">
-                      <span className="font-medium text-brand-navy/70 dark:text-white/70">
-                        {h.to_status}
-                      </span>
-                      <span className="text-xs text-brand-navy/30 dark:text-white/30">
-                        {fmtDate(h.created_at)}
-                      </span>
-                    </div>
-                  ))}
-                {(o.status_history ?? []).length === 0 ? (
-                  <p className="text-brand-navy/40 dark:text-white/40">{"\u2014"}</p>
-                ) : null}
+                {(o.status_history ?? []).sort((a, b) => (a.created_at > b.created_at ? -1 : 1)).slice(0, 10).map((h) => (
+                  <div key={h.id} className="flex items-start justify-between gap-3">
+                    <span className="font-medium text-brand-navy/70 dark:text-white/70">{h.to_status}</span>
+                    <span className="text-xs text-brand-navy/30 dark:text-white/30">{fmtDate(h.created_at)}</span>
+                  </div>
+                ))}
+                {(o.status_history ?? []).length === 0 ? <p className="text-brand-navy/40 dark:text-white/40">{"\u2014"}</p> : null}
               </div>
             </div>
           </aside>

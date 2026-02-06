@@ -15,7 +15,6 @@ type AddOns = {
 };
 
 type OrderDraft = {
-  email: string;
   platform: Platform;
   tier: Tier;
   vibe: string;
@@ -137,7 +136,6 @@ export function OrderWizard() {
   const router = useRouter();
   const [step, setStep] = useState<Step>("choose");
   const [draft, setDraft] = useState<OrderDraft>({
-    email: "",
     platform: "instagram",
     tier: "B",
     vibe: vibes[0],
@@ -175,10 +173,9 @@ export function OrderWizard() {
     return total;
   }, [draft, meta.basePriceCents]);
 
-  const isValidEmail = /^\S+@\S+\.\S+$/.test(draft.email);
   const canContinueChoose = Boolean(draft.platform && draft.tier && draft.vibe);
   const canContinueUpload = uploads.length > 0 && uploads.every((u) => u.status === "done");
-  const canContinueBrief = draft.brief.want.trim().length > 0 && isValidEmail;
+  const canContinueBrief = draft.brief.want.trim().length > 0;
 
   const steps: Step[] = ["choose", "upload", "brief", "review"];
   const stepIndex = steps.indexOf(step);
@@ -249,7 +246,6 @@ export function OrderWizard() {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          email: draft.email,
           tier: draft.tier,
           platform: draft.platform,
           vibe: draft.vibe,
@@ -415,7 +411,7 @@ export function OrderWizard() {
       }
       setBriefState({ type: "saved", status: data.status });
       // Redirect to order detail page
-      router.push(`/orders/${orderId}?email=${encodeURIComponent(draft.email)}`);
+      router.push(`/orders/${orderId}`);
     } catch (e) {
       setBriefState({
         type: "error",
@@ -492,20 +488,6 @@ export function OrderWizard() {
                 </label>
               </div>
 
-              <label className="space-y-2">
-                <span className="text-sm font-medium">Email *</span>
-                <input
-                  value={draft.email}
-                  onChange={(e) =>
-                    setDraft((d) => ({ ...d, email: e.target.value }))
-                  }
-                  placeholder="you@domain.com"
-                  className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm dark:border-zinc-800 dark:bg-zinc-950"
-                />
-                <p className="text-xs text-zinc-500 dark:text-zinc-500">
-                  Used for order access (magic link) and notifications.
-                </p>
-              </label>
 
               <div className="grid gap-3 sm:grid-cols-3">
                 {(["A", "B", "C"] as const).map((t) => {
@@ -633,8 +615,8 @@ export function OrderWizard() {
                 </div>
                 <Button
                   onClick={goNext}
-                  disabled={!canContinueChoose || !isValidEmail}
-                  aria-disabled={!canContinueChoose || !isValidEmail}
+                  disabled={!canContinueChoose}
+                  aria-disabled={!canContinueChoose}
                 >
                   Continue
                 </Button>
@@ -950,9 +932,6 @@ export function OrderWizard() {
                       {meta.label} · {meta.finalLength} · {draft.vibe}
                     </p>
                     <p className="mt-1 text-zinc-600 dark:text-zinc-400">
-                      {draft.email || "(missing email)"}
-                    </p>
-                    <p className="mt-1 text-zinc-600 dark:text-zinc-400">
                       {draft.platform === "instagram"
                         ? "Instagram Reels"
                         : draft.platform === "tiktok"
@@ -1036,7 +1015,6 @@ export function OrderWizard() {
                   disabled={
                     briefState.type === "saving" ||
                     briefState.type === "saved" ||
-                    !isValidEmail ||
                     !draft.brief.want.trim()
                   }
                 >
