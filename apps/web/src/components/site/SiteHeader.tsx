@@ -2,6 +2,8 @@ import Link from "next/link";
 import { Container } from "@/components/site/Container";
 import { Button } from "@/components/site/Button";
 import { Logo } from "@/components/site/Logo";
+import { UserMenu } from "@/components/site/UserMenu";
+import { getCurrentUser } from "@/lib/supabase/user";
 
 const nav = [
   { href: "/pricing", label: "Pricing" },
@@ -9,7 +11,9 @@ const nav = [
   { href: "/faq", label: "FAQ" },
 ] as const;
 
-export function SiteHeader() {
+export async function SiteHeader() {
+  const user = await getCurrentUser();
+
   return (
     <header className="sticky top-0 z-50 border-b border-brand-coral/10 bg-white/80 backdrop-blur-lg dark:bg-brand-navy/90">
       <Container className="flex h-16 items-center justify-between">
@@ -29,15 +33,21 @@ export function SiteHeader() {
         </div>
 
         <div className="flex items-center gap-3">
-          <Link
-            href="/login"
-            className="hidden text-sm font-medium text-brand-navy/70 transition-colors hover:text-brand-coral sm:block dark:text-white/70 dark:hover:text-brand-coral"
-          >
-            Sign in
-          </Link>
-          <Button size="sm" href="/subscribe">
-            Subscribe
-          </Button>
+          {user ? (
+            <UserMenu email={user.email} />
+          ) : (
+            <>
+              <Link
+                href="/login"
+                className="hidden text-sm font-medium text-brand-navy/70 transition-colors hover:text-brand-coral sm:block dark:text-white/70 dark:hover:text-brand-coral"
+              >
+                Sign in
+              </Link>
+              <Button size="sm" href="/subscribe">
+                Subscribe
+              </Button>
+            </>
+          )}
         </div>
       </Container>
     </header>
